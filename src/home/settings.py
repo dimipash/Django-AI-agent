@@ -116,4 +116,8 @@ OPENAI_API_KEY = config('OPENAI_API_KEY', default=None)
 
 TMDB_API_KEY = config('TMDB_API_KEY', default=None)
 
+PERMIT_API_KEY=config('PERMIT_API_KEY', default=None)
+
+PERMIT_PDP_URL=config('PERMIT_PDP_URL', default="https://cloudpdp.api.permit.io")
+
 
