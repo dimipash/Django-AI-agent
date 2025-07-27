@@ -1,9 +1,10 @@
+from asgrief.sync import async_to_sync
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from django.db.models import Q
 
 from documents.models import Document
-
+from mypermit import permit_client as permit
 
 @tool
 def search_query_documents(query: str, limit: int = 5, config: RunnableConfig = {}):
@@ -23,10 +24,9 @@ def search_query_documents(query: str, limit: int = 5, config: RunnableConfig = 
         "active": True,
     }
 
-    has_perms = async_to_sync(permit.check)(f"{user_id}", "read", "document")
+    has_perms = async_to_sync(permit.check)(f"{user.id}", "read", "document")
     if not has_perms:
-        raise Exception("You do not have permission to do search the documents.")
-
+        raise Exception("You do not have permission to search the documents.")
     qs = (
         Document.objects.filter(**default_lookups)
         .filter(Q(title__icontains=query) | Q(content__icontains=query))
@@ -77,23 +77,24 @@ def get_document(document_id: int, config: RunnableConfig):
     """
     configurable = config.get("configurable") or config.get("metadata")
     user_id = configurable.get("user_id")
-    if not user_id:
-        raise Exception("User not found")
-
+    if user_id is None:
+        raise Exception("Invalid request for user.")
+    
+    has_perms = async_to_sync(permit.check)(f"{user_id}", "read", "document")
+    if not has_perms:
+        raise Exception("You do not have permission to get individual documents.")
     try:
-        obj = Document.objects.get(id=document_id, owner_id=user_id, active=True)
+        obj = Document.objects.get(id=document_id, active=True)
     except Document.DoesNotExist:
-        raise Exception("Document not found")
+        raise Exception("Document not found, try again")
     except:
-        raise Exception("Something went wrong")
-
-    response_data = {
+        raise Exception("Invalid request for a document detail, try again")
+    response_data =  {
         "id": obj.id,
         "title": obj.title,
         "content": obj.content,
-        "created_at": obj.created_at,
+        "created_at": obj.created_at
     }
-
     return response_data
 
 
@@ -108,20 +109,19 @@ def create_document(title: str, content: str, config: RunnableConfig):
     """
     configurable = config.get("configurable") or config.get("metadata")
     user_id = configurable.get("user_id")
-    if not user_id:
-        raise Exception("User not found")
-
-    obj = Document.objects.create(
-        title=title, content=content, owner_id=user_id, active=True
-    )
-
-    response_data = {
+    if user_id is None:
+        raise Exception("Invalid request for user.")
+    has_perms = async_to_sync(permit.check)(f"{user_id}", "create", "document")
+    if not has_perms:
+        raise Exception("You do not have permission to create individual documents.")
+    
+    obj = Document.objects.create(title=title, content=content, owner_id=user_id, active=True)
+    response_data =  {
         "id": obj.id,
         "title": obj.title,
         "content": obj.content,
-        "created_at": obj.created_at,
+        "created_at": obj.created_at
     }
-
     return response_data
 
 
@@ -153,7 +153,7 @@ def update_document(
         raise Exception("Document not found, try again")
     except:
         raise Exception("Invalid request for a document detail, try again")
-
+    
     if title is not None:
         obj.title = title
     if content is not None:
@@ -161,11 +161,11 @@ def update_document(
     if title or content:
         obj.save()
     # obj = Document.objects.create(title=title, content=content, owner_id=user_id, active=True)
-    response_data = {
+    response_data =  {
         "id": obj.id,
         "title": obj.title,
         "content": obj.content,
-        "created_at": obj.created_at,
+        "created_at": obj.created_at
     }
     return response_data
 
@@ -188,12 +188,12 @@ def delete_document(document_id: int, config: RunnableConfig):
         raise Exception("Document not found, try again")
     except:
         raise Exception("Invalid request for a document detail, try again")
-
+    
     # has_object_perms = async_to_sync(permit.check)(f"{user_id}", "delete", f"document:{obj.id}")
     # if not has_object_perms:
     #     raise Exception("You do not have permission to delete individual documents.")
     obj.delete()
-    response_data = {"message": "success"}
+    response_data =  {"message": "success"}
     return response_data
 
 
